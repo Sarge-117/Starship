@@ -449,6 +449,9 @@ void DrawEnhancementsMenu() {
                 .tooltip = "Character heads are displayed inside Arwings in all cutscenes",
                 .defaultValue = true
             });
+            UIWidgets::CVarCheckbox(
+                "Pipe-down, Slippy!", "gPipeDownSlippy",
+                { .tooltip = "Falco has had enough of Slippy and will tell him to pipe-down.", .defaultValue = false });
 
             ImGui::EndMenu();
         }

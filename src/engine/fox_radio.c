@@ -28,6 +28,7 @@ f32 gRadioTextBoxPosY;
 f32 gRadioTextBoxScaleX;
 f32 gRadioPortraitPosX;
 f32 gRadioPortraitPosY;
+bool gFalcoInterrupt = false;
 
 s32 gRadioMsgPri = 0;
 
@@ -73,6 +74,11 @@ void Radio_PlayMessage(u16* msg, RadioCharacterId character) {
         case MSGCHAR_PRI3:
             priority = 3;
             break;
+    }
+
+    // If Falco is interrupting Slippy, he has high priority
+    if (gFalcoInterrupt && character == RCID_FALCO) {
+        priority = 3;
     }
 
     if (gGameState == GSTATE_PLAY) {
@@ -620,6 +626,11 @@ void Radio_Draw(void) {
                         }
                     } else {
                         gRadioMsgCharIndex++;
+
+                        // If Falco is interrupting Slippy, don't print "Just hold on" (other half of the message)
+                        if (gFalcoInterrupt && gRadioMsgCharIndex > 17 && gCurrentRadioPortrait < 20) {
+                            gRadioMsg[gRadioMsgCharIndex + 1] = MSGCHAR_SPC;
+                        }
                     }
                 } else if (gRadioMsgCharIndex < 60) {
                     gRadioMsgCharIndex = 60;
@@ -722,6 +733,18 @@ void Radio_Draw(void) {
         }
 
         radioCharId = (s32) gRadioMsgRadioId;
+
+        // If Slippy talks, Falco has a high change of interrupting him and telling him to pipe-down.
+        if (CVarGetInteger("gPipeDownSlippy", 0) && radioCharId == RCID_SLIPPY && gRadioMsgCharIndex > 3 && Rand_ZeroOne() <= 0.085f) {
+            Radio_PlayMessage(gMsg_ID_4096, RCID_FALCO);
+            gFalcoInterrupt = true;
+        }
+        // Stop Falco's message before he says "Just hold on"
+        if (radioCharId == RCID_FALCO && gRadioMsgCharIndex > 32 && gFalcoInterrupt) {
+            gRadioState = 6;
+            gRadioStateTimer = 0;
+            gFalcoInterrupt = false;
+        }
 
         if ((radioCharId == RCID_WOLF) || (radioCharId == RCID_PIGMA) || (radioCharId == RCID_LEON) ||
             (radioCharId == RCID_ANDREW) || (radioCharId == RCID_WOLF_2) || (radioCharId == RCID_PIGMA_2) ||
