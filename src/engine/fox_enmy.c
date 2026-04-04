@@ -18,6 +18,7 @@
 #include "assets/ast_training.h"
 #include "assets/ast_versus.h"
 #include "assets/ast_zoness.h"
+#include "port/hooks/Events.h"
 
 s32 D_enmy_Timer_80161670[4];
 s32 gLastPathChange;
@@ -110,7 +111,8 @@ bool func_enmy_80060FE4(Vec3f* arg0, f32 arg1) {
 
     Matrix_MultVec3fNoTranslate(gCalcMatrix, &src, &dest);
 
-    if ((dest.z < 1000.0f) && (arg1 < dest.z) && (fabsf(dest.x) < (fabsf(dest.z * 0.5f) + 2000.0f))) {
+    // @port: Extend draw distance up to 32/9
+    if ((dest.z < 1000.0f) && (arg1 < dest.z) && (fabsf(dest.x) < (fabsf(dest.z * /* 0.5f */ 1.5f) + 2000.0f))) {
         return true;
     }
     return false;
@@ -276,7 +278,9 @@ void Item_Load(Item* this, ObjectInit* objInit) {
     this->obj.rot.z = objInit->rot.z;
     this->obj.id = objInit->id;
     this->width = 1.0f;
-    Object_SetInfo(&this->info, this->obj.id);
+    CALL_CANCELLABLE_EVENT(ItemDropEvent, this) {
+        Object_SetInfo(&this->info, this->obj.id);
+    }
 }
 
 void Effect_Effect346_Setup(Effect346* this, f32 xPos, f32 yPos, f32 zPos) {
@@ -593,6 +597,31 @@ void Object_LoadLevelObjects(void) {
     }
 
     gLastPathChange = 0;
+
+// Level Boss Tester
+#if 0
+    switch (gCurrentLevel) {
+    case LEVEL_AQUAS:
+        static ObjectInit bossaqInit[] = { { 100.6f, -4035, 0, 0, { 0, 0, 0 }, OBJ_BOSS_AQ_BACOON } };
+        gLevelObjects = bossaqInit;
+        break;
+
+    case LEVEL_TITANIA:
+        static ObjectInit aTiLevelObjects_Boss[] = { { 300.0f, -1000, 0, 0, { 0, 0, 0 }, OBJ_BOSS_TI_GORAS } };
+        gLevelObjects = aTiLevelObjects_Boss;
+        break;
+
+    case LEVEL_SECTOR_X:
+        static ObjectInit aSxLevelObjects_Boss[] = { { 100.0f, 4000, 0, 1103, { 0, 0, 0 }, OBJ_BOSS_SX_SPYBORG } };
+        gLevelObjects = aSxLevelObjects_Boss;
+        break;
+
+    case LEVEL_SOLAR:
+        static ObjectInit aSoLevelObjects_Boss[] = { { 100.0f, 0, 0, 0, { 0, 0, 0 }, OBJ_BOSS_SO_VULKAIN } };
+        gLevelObjects = aSoLevelObjects_Boss;
+        break;
+    }
+#endif
 
     for (i = 0, objInit = &gLevelObjects[gObjectLoadIndex]; i < 10000; i++, gObjectLoadIndex++, objInit++) {
         if (objInit->id <= OBJ_INVALID) {
@@ -1042,8 +1071,10 @@ void Scenery_CoStoneArch_Init(CoStoneArch* this, f32* hitboxData) {
             item->obj.pos.y = this->obj.pos.y;
             item->obj.pos.z = this->obj.pos.z;
             item->obj.rot.y = this->obj.rot.y;
-            Object_SetInfo(&item->info, item->obj.id);
             item->info.hitbox = LOAD_ASSET(hitboxData);
+            CALL_CANCELLABLE_EVENT(ItemDropEvent, item) {
+                Object_SetInfo(&item->info, item->obj.id);
+            }
             break;
         }
     }
@@ -1696,21 +1727,23 @@ void func_enmy_800660F0(Actor* this) {
             item->obj.pos.z = this->obj.pos.z;
             item->timer_4A = 8;
 
-            Object_SetInfo(&item->info, item->obj.id);
+            CALL_CANCELLABLE_EVENT(ItemDropEvent, item) {
+                Object_SetInfo(&item->info, item->obj.id);
+                if ((item->obj.id == OBJ_ITEM_SILVER_RING) || (item->obj.id == OBJ_ITEM_BOMB) ||
+                    (item->obj.id == OBJ_ITEM_LASERS)) {
+                    item->unk_50 = 90.0f;
+                }
 
-            if ((item->obj.id == OBJ_ITEM_SILVER_RING) || (item->obj.id == OBJ_ITEM_BOMB) ||
-                (item->obj.id == OBJ_ITEM_LASERS)) {
-                item->unk_50 = 90.0f;
-            }
-
-            if ((item->obj.id >= OBJ_ITEM_GOLD_RING) || (item->obj.id == OBJ_ITEM_1UP)) {
-                item->unk_50 = 90.0f;
-                AUDIO_PLAY_SFX(NA_SE_ITEM_APPEAR, gDefaultSfxSource, 4);
-                item->timer_48 = 1000;
-                if (item->obj.id == OBJ_ITEM_WING_REPAIR) {
-                    AUDIO_PLAY_SFX(NA_SE_OB_WING, item->sfxSource, 0);
+                if ((item->obj.id >= OBJ_ITEM_GOLD_RING) || (item->obj.id == OBJ_ITEM_1UP)) {
+                    item->unk_50 = 90.0f;
+                    AUDIO_PLAY_SFX(NA_SE_ITEM_APPEAR, gDefaultSfxSource, 4);
+                    item->timer_48 = 1000;
+                    if (item->obj.id == OBJ_ITEM_WING_REPAIR) {
+                        AUDIO_PLAY_SFX(NA_SE_OB_WING, item->sfxSource, 0);
+                    }
                 }
             }
+
             break;
         }
     }
@@ -2806,7 +2839,9 @@ void Actor_Update(Actor* this) {
             }
         }
     } else if (this->lockOnTimers[TEAM_ID_FOX] != 0) {
-        if (!(gControllerHold[gMainController].button & A_BUTTON)) {
+        bool rapidFire = CVarGetInteger("gRapidFire", 0) == 1;
+        if (!(gControllerHold[gMainController].button & A_BUTTON) ||
+            (rapidFire && (gControllerHold[gMainController].button & A_BUTTON))) {
             this->lockOnTimers[TEAM_ID_FOX]--;
         }
         gChargeTimers[0] = 0;
@@ -2817,27 +2852,37 @@ void Actor_Update(Actor* this) {
     }
 
     switch (this->obj.status) {
-        case OBJ_INIT:
-            this->obj.status = OBJ_ACTIVE;
-            Object_Init(this->index, this->obj.id);
-            if (this->obj.id != OBJ_ACTOR_ZO_RADARBUOY) {
+        case OBJ_INIT: {
+            CALL_CANCELLABLE_EVENT(ObjectInitEvent, OBJECT_TYPE_ACTOR, this) {
+                this->obj.status = OBJ_ACTIVE;
+                Object_Init(this->index, this->obj.id);
+                if (this->obj.id != OBJ_ACTOR_ZO_RADARBUOY) {
+                    Actor_Move(this);
+                }
+            }
+            break;
+        }
+
+        case OBJ_ACTIVE: {
+            CALL_CANCELLABLE_EVENT(ObjectUpdateEvent, OBJECT_TYPE_ACTOR, this) {
                 Actor_Move(this);
+                if ((this->obj.status != OBJ_FREE) && (this->info.action != NULL)) {
+                    this->info.action(&this->obj);
+                }
             }
             break;
+        }
 
-        case OBJ_ACTIVE:
-            Actor_Move(this);
-            if ((this->obj.status != OBJ_FREE) && (this->info.action != NULL)) {
-                this->info.action(&this->obj);
+        case OBJ_DYING: {
+            CALL_CANCELLABLE_EVENT(ObjectDestroyEvent, OBJECT_TYPE_ACTOR, this) {
+                Actor_Move(this);
+                if (this->obj.status != OBJ_FREE) {
+                    Object_Dying(this->index, this->obj.id);
+                }
+                break;
             }
             break;
-
-        case OBJ_DYING:
-            Actor_Move(this);
-            if (this->obj.status != OBJ_FREE) {
-                Object_Dying(this->index, this->obj.id);
-            }
-            break;
+        }
     }
 }
 
@@ -2865,25 +2910,34 @@ void Boss_Update(Boss* this) {
     }
 
     switch (this->obj.status) {
-        case OBJ_INIT:
-            this->obj.status = OBJ_ACTIVE;
-            Object_Init(this->index, this->obj.id);
-            Boss_Move(this);
-            break;
-
-        case OBJ_ACTIVE:
-            Boss_Move(this);
-            if ((this->obj.status != OBJ_FREE) && (this->info.action != NULL)) {
-                this->info.action(&this->obj);
+        case OBJ_INIT: {
+            CALL_CANCELLABLE_EVENT(ObjectInitEvent, OBJECT_TYPE_BOSS, this) {
+                this->obj.status = OBJ_ACTIVE;
+                Object_Init(this->index, this->obj.id);
+                Boss_Move(this);
             }
             break;
+        }
 
-        case OBJ_DYING:
-            Boss_Move(this);
-            if (this->obj.status != OBJ_FREE) {
-                Object_Dying(this->index, this->obj.id);
+        case OBJ_ACTIVE: {
+            CALL_CANCELLABLE_EVENT(ObjectUpdateEvent, OBJECT_TYPE_BOSS, this) {
+                Boss_Move(this);
+                if ((this->obj.status != OBJ_FREE) && (this->info.action != NULL)) {
+                    this->info.action(&this->obj);
+                }
             }
             break;
+        }
+
+        case OBJ_DYING: {
+            CALL_CANCELLABLE_EVENT(ObjectDestroyEvent, OBJECT_TYPE_BOSS, this) {
+                Boss_Move(this);
+                if (this->obj.status != OBJ_FREE) {
+                    Object_Dying(this->index, this->obj.id);
+                }
+            }
+            break;
+        }
     }
 }
 
@@ -2893,40 +2947,54 @@ void Scenery_Update(Scenery* this) {
     }
 
     switch (this->obj.status) {
-        case OBJ_INIT:
-            this->obj.status = OBJ_ACTIVE;
-            Object_Init(this->index, this->obj.id);
-            Scenery_Move(this);
-            break;
-
-        case OBJ_ACTIVE:
-            Scenery_Move(this);
-            if (this->info.action != NULL) {
-                this->info.action(&this->obj);
+        case OBJ_INIT: {
+            CALL_CANCELLABLE_EVENT(ObjectInitEvent, OBJECT_TYPE_SCENERY, this) {
+                this->obj.status = OBJ_ACTIVE;
+                Object_Init(this->index, this->obj.id);
+                Scenery_Move(this);
             }
             break;
+        }
+
+        case OBJ_ACTIVE: {
+            CALL_CANCELLABLE_EVENT(ObjectUpdateEvent, OBJECT_TYPE_SCENERY, this) {
+                Scenery_Move(this);
+                if (this->info.action != NULL) {
+                    this->info.action(&this->obj);
+                }
+            }
+            break;
+        }
     }
 }
 
 void Sprite_Update(Sprite* this) {
     switch (this->obj.status) {
-        case OBJ_INIT:
-            this->obj.status = OBJ_ACTIVE;
-            Object_Init(this->index, this->obj.id);
-            Sprite_Move(this);
-            break;
-
-        case OBJ_ACTIVE:
-            Sprite_Move(this);
-            if (this->info.action != NULL) {
-                this->info.action(&this->obj);
+        case OBJ_INIT: {
+            CALL_CANCELLABLE_EVENT(ObjectInitEvent, OBJECT_TYPE_SPRITE, this) {
+                this->obj.status = OBJ_ACTIVE;
+                Object_Init(this->index, this->obj.id);
+                Sprite_Move(this);
             }
             break;
-
-        case OBJ_DYING:
-            Sprite_Move(this);
-            Object_Dying(this->index, this->obj.id);
+        }
+        case OBJ_ACTIVE: {
+            CALL_CANCELLABLE_EVENT(ObjectUpdateEvent, OBJECT_TYPE_SPRITE, this) {
+                Sprite_Move(this);
+                if (this->info.action != NULL) {
+                    this->info.action(&this->obj);
+                }
+            }
             break;
+        }
+
+        case OBJ_DYING: {
+            CALL_CANCELLABLE_EVENT(ObjectDestroyEvent, OBJECT_TYPE_SPRITE, this) {
+                Sprite_Move(this);
+                Object_Dying(this->index, this->obj.id);
+            }
+            break;
+        }
     }
 }
 
@@ -2939,18 +3007,24 @@ void Item_Update(Item* this) {
     }
 
     switch (this->obj.status) {
-        case OBJ_INIT:
-            this->obj.status = OBJ_ACTIVE;
-            Object_Init(this->index, this->obj.id);
-            Item_Move(this);
-            break;
-
-        case OBJ_ACTIVE:
-            Item_Move(this);
-            if (this->info.action != NULL) {
-                this->info.action(&this->obj);
+        case OBJ_INIT: {
+            CALL_CANCELLABLE_EVENT(ObjectInitEvent, OBJECT_TYPE_ITEM, this) {
+                this->obj.status = OBJ_ACTIVE;
+                Object_Init(this->index, this->obj.id);
+                Item_Move(this);
             }
             break;
+        }
+
+        case OBJ_ACTIVE: {
+            CALL_CANCELLABLE_EVENT(ObjectUpdateEvent, OBJECT_TYPE_ITEM, this) {
+                Item_Move(this);
+                if (this->info.action != NULL) {
+                    this->info.action(&this->obj);
+                }
+            }
+            break;
+        }
     }
 }
 
@@ -2960,16 +3034,23 @@ void Effect_Update(Effect* this) {
     }
 
     switch (this->obj.status) {
-        case OBJ_INIT:
-            this->obj.status = OBJ_ACTIVE;
-            Object_Init(this->index, this->obj.id);
+        case OBJ_INIT: {
+            CALL_CANCELLABLE_EVENT(ObjectInitEvent, OBJECT_TYPE_EFFECT, this) {
+                this->obj.status = OBJ_ACTIVE;
+                Object_Init(this->index, this->obj.id);
+                Effect_Move(this);
+            }
             /* fallthrough */
-        case OBJ_ACTIVE:
-            Effect_Move(this);
-            if ((this->obj.status != OBJ_FREE) && (this->info.action != NULL)) {
-                this->info.action(&this->obj);
+        }
+        case OBJ_ACTIVE: {
+            CALL_CANCELLABLE_EVENT(ObjectUpdateEvent, OBJECT_TYPE_EFFECT, this) {
+                Effect_Move(this);
+                if ((this->obj.status != OBJ_FREE) && (this->info.action != NULL)) {
+                    this->info.action(&this->obj);
+                }
             }
             break;
+        }
     }
 }
 

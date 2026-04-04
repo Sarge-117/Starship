@@ -6,6 +6,7 @@
 
 #include "global.h"
 #include "assets/ast_area_6.h"
+#include "fox_record.h"
 
 void Area6_8018A1B0(Boss* this, s32 arg1);
 void Area6_8018A2C4(Boss* this);
@@ -425,6 +426,9 @@ void Area6_A6Gorgon_Init(A6Gorgon* this) {
     gProjectFar = 25000.0f;
     gBossFrameCount = 0;
 
+    // @Port: Vi recording
+    gA6GorgonCsFrameCount = 0;
+
     this->health = 780;
 
     this->fwork[A6_FWK_2] = this->fwork[A6_FWK_34] = 2.0f;
@@ -830,8 +834,10 @@ void Area6_A6Gorgon_Update(A6Gorgon* this) {
         case 2:
             Math_SmoothStepToF(D_ctx_801779A8, 10.0f, 1.0f, 5.0f, 0.0f);
             if (this->timer_050 == 10) {
-                gFillScreenRed = gFillScreenGreen = gFillScreenBlue = 255;
-                gFillScreenAlpha = gFillScreenAlphaTarget = 255;
+                if (CVarGetInteger("gDisableGorgonFlash", 0) == 0) {
+                    gFillScreenRed = gFillScreenGreen = gFillScreenBlue = 255;
+                    gFillScreenAlpha = gFillScreenAlphaTarget = 255;
+                }
                 gFillScreenAlphaTarget = 0;
                 gFillScreenAlphaStep = 25;
                 gCameraShake = 50;
@@ -1185,6 +1191,10 @@ void Area6_A6Gorgon_Update(A6Gorgon* this) {
             break;
 
         case 11:
+            // @Port: Vi recording
+            UpdateVisPerFrameFromRecording(gA6GorgonCsRecord, ARRAY_COUNT(gA6GorgonCsRecord), &gA6GorgonCsFrameCount);
+            gA6GorgonCsFrameCount++;
+
             if ((this->timer_052 == 160) &&
                 ((gPlayer[0].state == PLAYERSTATE_ACTIVE) || (gPlayer[0].state == PLAYERSTATE_U_TURN))) {
                 gPlayer[0].state = PLAYERSTATE_LEVEL_COMPLETE;

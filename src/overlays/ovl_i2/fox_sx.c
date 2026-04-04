@@ -210,7 +210,7 @@ void SectorX_8018FA04(f32 x, f32 y, f32 z) {
             slippy->obj.pos.y = y;
             slippy->obj.pos.z = z;
             Object_SetInfo(&slippy->info, slippy->obj.id);
-            slippy->info.hitbox = (f32*)SEGMENTED_TO_VIRTUAL(aSxBaseWallTile1Hitbox);
+            slippy->info.hitbox = (f32*) SEGMENTED_TO_VIRTUAL(aSxBaseWallTile1Hitbox);
             xRot = Math_Atan2F(gPlayer[0].pos.x - x, gPlayer[0].trueZpos - z);
             pad = sqrtf(SQ(gPlayer[0].pos.x - x) + SQ(gPlayer[0].trueZpos - z));
             yRot = -Math_Atan2F(gPlayer[0].pos.y - y, pad);
@@ -1675,6 +1675,13 @@ void SectorX_LevelComplete_SetupTeam(ActorCutscene* this, s32 teamIdx) {
     srcA.x = D_i2_80195710[teamIdx];
     srcA.y = D_i2_80195720[teamIdx];
     srcA.z = D_i2_80195730[teamIdx];
+
+    // @port: Hide Falco's spawn behind Fox's Arwing so he doesn't look like he came out of nowhere on widescreen.
+    if ((GameEngine_GetAspectRatio() > 1.66f) && (teamIdx == 0)) {
+        srcA.y -= 100.0f;
+        srcA.z += 1000.0f;
+    }
+
     srcB.x = D_i2_80195740[teamIdx];
     srcB.y = D_i2_80195750[teamIdx];
     srcB.z = D_i2_80195760[teamIdx];

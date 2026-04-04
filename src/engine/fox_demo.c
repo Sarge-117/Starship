@@ -18,6 +18,9 @@
 #include "assets/ast_title.h"
 #include "assets/ast_katina.h"
 #include "assets/ast_allies.h"
+#include "port/hooks/Events.h"
+#include "fox_co.h"
+#include "fox_record.h"
 
 void func_demo_80048AC0(TeamId teamId) {
     s32 teamShield;
@@ -396,6 +399,10 @@ void Cutscene_EnterWarpZone(Player* player) {
     s32 var_v0;
     s32 pad[4];
 
+    // @Port: Vi recording
+    gWarpzoneCsFrameCount++;
+    UpdateVisPerFrameFromRecording(gWarpzoneCsRecord, ARRAY_COUNT(gWarpzoneCsRecord), &gWarpzoneCsFrameCount);
+
     player->pos.x += player->vel.x;
     player->flags_228 = 0;
     player->alternateView = false;
@@ -423,6 +430,9 @@ void Cutscene_EnterWarpZone(Player* player) {
 
     switch (player->csState) {
         case 0:
+            // @port: Initialize warpzone frame counter for recording.
+            gWarpzoneCsFrameCount = 0;
+
             player->somersault = false;
             gStarWarpDistortion = 100.0f;
             player->csState = 1;
@@ -620,6 +630,8 @@ void Cutscene_LevelStart(Player* player) {
                 break;
 
             case LEVEL_SOLAR:
+                // @Port: Vi recording
+                UpdateVisPerFrameFromRecording(gSolarIntroCsRecord, ARRAY_COUNT(gSolarIntroCsRecord), &gCsFrameCount);
                 Solar_LevelStart(player);
                 break;
 
@@ -923,6 +935,9 @@ void Cutscene_CoComplete2(Player* player) {
     player->flags_228 = 0;
 
     Math_SmoothStepToF(&player->camRoll, 0.0f, 0.1f, 5.0f, 0.01f);
+
+    // @Port: Vi recording
+    UpdateVisPerFrameFromRecording(gCarrierCutsceneRecord, ARRAY_COUNT(gCarrierCutsceneRecord), &gCsFrameCount);
 
     switch (player->csState) {
         case 10:
@@ -1567,7 +1582,9 @@ void Cutscene_DropVsItem(Player* player, ObjectId itemId, Item* item) {
     item->obj.pos.y = player->pos.y;
     item->obj.pos.z = player->trueZpos;
     item->obj.id = itemId;
-    Object_SetInfo(&item->info, item->obj.id);
+    CALL_CANCELLABLE_EVENT(ItemDropEvent, item) {
+        Object_SetInfo(&item->info, item->obj.id);
+    }
 }
 
 void Cutscene_KillPlayer(Player* player) {
@@ -2360,7 +2377,7 @@ void ActorCutscene_Update(ActorCutscene* this) {
                     break;
 
                 case LEVEL_FORTUNA:
-                    if (this->animFrame == 11) {
+                    if (this->animFrame == ACTOR_CS_FO_EXPLOSION) {
                         switch (this->state) {
                             case 0:
                                 if (gCsFrameCount == 100) {
@@ -2368,6 +2385,8 @@ void ActorCutscene_Update(ActorCutscene* this) {
                                     this->timer_0BC = 50;
                                     this->iwork[0] = 255;
                                     AUDIO_PLAY_SFX(NA_SE_EN_BOSS_EXPLOSION, this->sfxSource, 0);
+                                    // @port: Add rumble to this explosion
+                                    gControllerRumbleTimers[0] = 4;
                                 }
                                 break;
 
@@ -2772,6 +2791,10 @@ void ActorCutscene_Draw(ActorCutscene* this) {
             break;
 
         case ACTOR_CS_37:
+            // Fixes the white flash on the right side of the screen during the Sector Y Intro Cutscene.
+            if ((gCurrentLevel == LEVEL_SECTOR_Y) && (gCsFrameCount == 350) && (gPlayer[0].csState == 2)) {
+                break;
+            }
             RCP_SetupDL_49();
             gDPSetPrimColor(gMasterDisp++, 0, 0, this->iwork[0], this->iwork[1], this->iwork[2], this->iwork[3]);
             gDPSetEnvColor(gMasterDisp++, this->iwork[4], this->iwork[5], this->iwork[6], this->iwork[7]);

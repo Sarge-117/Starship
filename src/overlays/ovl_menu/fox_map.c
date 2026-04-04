@@ -16,6 +16,9 @@
 #include "assets/ast_text.h"
 #include "assets/ast_font_3d.h"
 #include "port/interpolation/FrameInterpolation.h"
+#include "port/mods/PortEnhancements.h"
+
+extern bool gBackToMap;
 
 // BSS STARTS HERE
 u8 gMapVenomCloudTex[96 * 96];
@@ -2072,6 +2075,10 @@ void Map_Texture_Sphere(u8* textureDest, u8* textureSrc, f32* offset) {
     if (*offset > 95.0f) {
         *offset = 0.0f;
     }
+
+#ifndef __SWITCH__
+    gSPInvalidateTexCache(gMasterDisp++, NULL);
+#endif
 }
 
 void Map_Prologue_Update(void) {
@@ -2143,7 +2150,8 @@ void Map_Prologue_Update(void) {
             break;
     }
 
-    if (gControllerPress[gMainController].button & START_BUTTON) {
+    if ((gControllerPress[gMainController].button & START_BUTTON) || gBackToMap) {
+        gBackToMap = false;
         AUDIO_PLAY_BGM(NA_BGM_MAP);
         AUDIO_PLAY_SFX(NA_SE_MAP_MOVE_STOP, gDefaultSfxSource, 4);
 
@@ -2178,14 +2186,14 @@ void Map_Prologue_Draw(void) {
 
     Map_PrologueArwing_Draw();
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_81_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_81_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 180, 180, 180, 255);
 
     // Prologue text
     Message_DisplayScrollingText(&gMasterDisp, gMsg_ID_1, sPrologueTextXpos, sPrologueTextYpos, 218, 70,
                                  Message_GetCharCount(gMsg_ID_1));
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_76_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_76_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
 
     // Vertical Fade Margins for prologue text
@@ -2197,7 +2205,7 @@ void Map_Prologue_Draw(void) {
     Background_DrawPartialStarfield(71, 118);
     Background_DrawPartialStarfield(205, 239);
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_76_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_76_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, sPrologueCurrentTexAlpha);
 
     Lib_TextureRect_RGBA16(&gMasterDisp, sPrologueTextures[sPrologueTexIdx], 96, 52, 109.0f, 24.0f, 1.0f, 1.0f);
@@ -2382,7 +2390,7 @@ void Map_LylatCard_Update(void) {
 void Map_LylatCard_Draw(void) {
     s32 i;
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, (s32) D_menu_801CEA9C);
 
@@ -3770,6 +3778,12 @@ bool Map_Input_CursorY(void) {
         stickY = 0;
     }
 
+    if (gControllerPress[gMainController].button & D_JPAD) {
+        stickY = -30;
+    } else if (gControllerPress[gMainController].button & U_JPAD) {
+        stickY = +30;
+    }
+
     if (stickY != 0) {
         if (D_menu_801CEFD4 == 0) {
             ret = true;
@@ -3841,7 +3855,7 @@ void Map_PathChange_DrawOptions(void) {
     }
 
     if (gGameFrameCount & mask) { // can't be != 0?
-        RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+        RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
         gDPSetPrimColor(gMasterDisp++, 0, 0, r[colorIndex], g[colorIndex], b[colorIndex], 255);
         Lib_TextureRect_IA8(&gMasterDisp, aMapProceedNextCourseTex, 96, 22, x + 11.0f, y + 3.0f, 1.0f, 1.0f);
     }
@@ -5416,7 +5430,7 @@ void Map_TitleCards_Draw(void) {
     s32 i;
     s32 planetCardIdx = sMapCurPlanetCards[sCurrentPlanetId];
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, (s32) sMapPlanetCardAlpha);
 
@@ -5508,7 +5522,7 @@ void Map_801A9A8C(void) {
             break;
     }
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
 
     if (CVarGetInteger("gLevelSelector", 0) && gMissionNumber == 6) {
@@ -5553,7 +5567,7 @@ void Map_801A9DE8(void) {
 }
 
 void Map_TotalHits_Draw(void) {
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
 
@@ -5619,7 +5633,7 @@ void Map_PathLineBox_Draw(s32 curMission) {
     PlanetId* ptr = &gMissionPlanet[0];
 
     for (x = 0.0f, i = 0; i < 7; i++, x += 24.0f + x2, ptr++) {
-        RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+        RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
         if (i < 6) {
             r = g = b = 255;
@@ -5666,7 +5680,7 @@ void Map_PathInfo_Draw(s32 missionIdx, f32 x, f32 y, s32 idx) {
     static s32 D_menu_801B6AE8[] = { 30, 179, 30 };
     static s32 D_menu_801B6AF4[] = { 0, 67, 255 };
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
 
     Graphics_DisplaySmallText(x + 12.0f - Graphics_GetSmallTextWidth(sPlanetNames[idx]) * 0.5f, y - 8.0f, 1.0f, 1.0f,
@@ -5688,7 +5702,7 @@ void Map_PathInfo_Draw(s32 missionIdx, f32 x, f32 y, s32 idx) {
         x2 = 0.0f;
         for (i = 0; i < 3; i++, x2 += 9.0f) {
             if ((gMissionTeamStatus[missionIdx] & mask) != 0) {
-                RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+                RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
                 gDPSetPrimColor(gMasterDisp++, 0, 0, D_menu_801B6ADC[i], D_menu_801B6AE8[i], D_menu_801B6AF4[i], 255);
                 Graphics_DisplaySmallText((s32) x + x2 - 1.0f, (s32) y + 24.0f + 8.0f + 2.0f, 1.0f, 1.0f,
                                           D_menu_801B6AD0[i]);
@@ -6114,7 +6128,7 @@ void Map_BriefingRadio_Draw(s32 arg0) {
         case 20:
         case 21:
             if (sTeamStatusAlpha != 0) {
-                RCP_SetupDL(&gMasterDisp, SETUPDL_76_POINT);
+                RCP_SetupDL(&gMasterDisp, SETUPDL_76_OPTIONAL);
                 gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, sTeamStatusAlpha);
                 xPos = 205.0f;
                 yPos = 77.0f;
@@ -6137,7 +6151,7 @@ void Map_BriefingRadio_Draw(s32 arg0) {
                             break;
 
                         case 0:
-                            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+                            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
                             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
                             if ((gGameFrameCount & 0x10) != 0) {
                                 Graphics_DisplaySmallText(sTeamStatusPos[i], 131 + 28, 1.0f, 1.0f, "OK !");
@@ -6150,7 +6164,7 @@ void Map_BriefingRadio_Draw(s32 arg0) {
                             break;
                     }
 
-                    RCP_SetupDL(&gMasterDisp, SETUPDL_76_POINT);
+                    RCP_SetupDL(&gMasterDisp, SETUPDL_76_OPTIONAL);
                     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, alpha[i]);
                     Lib_TextureRect_RGBA16(&gMasterDisp, sRadioCharacterFaces[i], 28, 28, sTeamStatusPos[i], 131.0f,
                                            1.0f, 1.0f);
@@ -6462,8 +6476,16 @@ void Map_PathLine_Draw(PathType pathType) {
 
     Matrix_Push(&gGfxMatrix);
 
-    // @port: Tag the transform.
-    FrameInterpolation_RecordOpenChild("Map_PathLine_Draw", 0);
+    static f32 prevPosX = 0.0f;
+    bool shouldSkipInterpolation = ABS(D_menu_801CEEB0.x) - ABS(prevPosX) > 30;
+
+    if (shouldSkipInterpolation) {
+        // @port Skip interpolation
+        FrameInterpolation_ShouldInterpolateFrame(false);
+    } else {
+        // @port: Tag the transform.
+        FrameInterpolation_RecordOpenChild("Map_PathLine_Draw", 0);
+    }
 
     Matrix_Translate(gGfxMatrix, D_menu_801CEEB0.x, D_menu_801CEEB0.y, D_menu_801CEEB0.z, MTXF_APPLY);
 
@@ -6478,8 +6500,15 @@ void Map_PathLine_Draw(PathType pathType) {
 
     Matrix_Pop(&gGfxMatrix);
 
-    // @port Pop the transform id.
-    FrameInterpolation_RecordCloseChild();
+    if (shouldSkipInterpolation) {
+        // @port Skip interpolation
+        FrameInterpolation_ShouldInterpolateFrame(true);
+    } else {
+        // @port Pop the transform id.
+        FrameInterpolation_RecordCloseChild();
+    }
+
+    prevPosX = D_menu_801CEEB0.x;
 
     D_menu_801B6B30 -= 45.0f;
 }
@@ -6719,6 +6748,9 @@ void Map_Idle_Update(void) {
     movingCamera = false;
 
     if (gControllerPress[gMainController].button & A_BUTTON) {
+        if (CVarGetInteger("gLevelSelector", 0) == 1) {
+            goto loadLevel;
+        }
         if ((gLastGameState == GSTATE_PLAY) && (sPrevMissionStatus != MISSION_COMPLETE) && !D_menu_801CEFD0) {
             Audio_PlayMapMenuSfx(1);
             D_menu_801CEFC4 = 1;
@@ -6727,6 +6759,7 @@ void Map_Idle_Update(void) {
             sMapState = MAP_PATH_CHANGE;
             D_menu_801CD94C = 0;
         } else {
+        loadLevel:
             for (i = 0; i < TEAM_ID_MAX; i++) {
                 D_ctx_80177C58[i] = gTeamShields[i];
             }
@@ -6870,7 +6903,7 @@ void Map_SetCamRot(f32 camAtX, f32 camAtY, f32 camAtZ, f32* camEyeX, f32* camEye
 }
 
 void Map_RemainingLives_Draw(s32 xPos, s32 yPos, s32 number) {
-    RCP_SetupDL(&gMasterDisp, SETUPDL_85_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_85_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
     Lib_TextureRect_CI4(&gMasterDisp, aMapArwingIconTex, aMapArwingIconTLUT, 16, 16, xPos, yPos, 1.0f, 1.0f);
@@ -6878,7 +6911,7 @@ void Map_RemainingLives_Draw(s32 xPos, s32 yPos, s32 number) {
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
     Lib_TextureRect_CI4(&gMasterDisp, aMapXTex, aMapXTLUT, 16, 7, xPos + 18.0f, yPos + 9.0f, 1.0f, 1.0f);
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
 
     if (number >= 10) {

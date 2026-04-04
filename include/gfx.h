@@ -26,6 +26,14 @@
                        ((height)-1) << G_TEXTURE_IMAGE_FRAC);                                                          \
     } while (0)
 
+#define gDPSetupTile2(pkt, fmt, siz, width, height, dw, dh,           \
+                     cms, cmt, masks, maskt, shifts, shiftt)         \
+{                                                                    \
+    gDPTileSync(pkt);                                                \
+    gDPSetTile(pkt, fmt, siz, (((width) * siz##_LINE_BYTES)+7)>>3, 0,\
+        G_TX_RENDERTILE, 0, cmt, maskt, shiftt, cms, masks, shifts); \
+}
+
 #define gDPSetupTile(pkt, fmt, siz, width, height, dw, dh,           \
                      cms, cmt, masks, maskt, shifts, shiftt)         \
 {                                                                    \
@@ -310,9 +318,11 @@ typedef enum SetupDL {
     /* 0x55 */ SETUPDL_85,
     /* 0x56 */ SETUPDL_86,
     /* 0x57 */ SETUPDL_87,
+    SETUPDL_29_POINT,
     SETUPDL_36_POINT, 
     SETUPDL_62_POINT,
     SETUPDL_63_POINT, 
+    SETUPDL_67_POINT, 
     SETUPDL_75_POINT, 
     SETUPDL_76_POINT, 
     SETUPDL_77_POINT, 

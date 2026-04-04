@@ -11,6 +11,7 @@
 #include "assets/ast_title.h"
 #include "assets/ast_text.h"
 #include "port/interpolation/FrameInterpolation.h"
+#include "port/mods/PortEnhancements.h"
 
 f32 D_menu_801B7BB0;
 f32 D_menu_801B7BB4;
@@ -145,6 +146,8 @@ f32 D_menu_801B9078;
 f32 D_menu_801B907C;
 f32 D_menu_801B9080;
 f32 D_menu_801B9084;
+
+// @port: Timer for drawing the mirrored Great Fox Deck.
 s32 segataSanshiroTimer = 0;
 
 TitleAnimation sTeamAnim[4] = {
@@ -270,7 +273,23 @@ void Title_UpdateEntry(void) {
     Title_NextState_Check();
 }
 
+static bool sSkipInterpolation = false;
+
 void Title_Draw(void) {
+    static s32 camSkipTimes;
+
+    if (sSkipInterpolation) {
+        // @port Skip interpolation
+        FrameInterpolation_ShouldInterpolateFrame(false);
+        printf("CAMERA 1 SKIPED: %d\n", camSkipTimes++);
+        gCamera1Skipped = true;
+        sSkipInterpolation = false;
+    } else {
+        FrameInterpolation_RecordOpenChild("TitleCam", 0);
+        FrameInterpolation_RecordMarker(__FILE__, __LINE__);
+        gCamera1Skipped = false;
+    }
+
     switch (sCutsceneState) {
         case TITLE_RANKING:
             Title_Ranking_Draw();
@@ -350,6 +369,14 @@ void Title_Draw(void) {
         gFillScreenBlue = 0;
         Wipe_Draw(WIPE_VERTICAL, sWipeHeight);
     }
+
+    if (sSkipInterpolation) {
+        // @port Re-enable Interpolation if it was skipped
+        FrameInterpolation_ShouldInterpolateFrame(true);
+    } else {
+        FrameInterpolation_RecordCloseChild();
+    }
+
 #if 0
     // @decomp Debug:
     RCP_SetupDL(&gMasterDisp, SETUPDL_83);
@@ -419,7 +446,7 @@ void Title_Ranking_Draw(void) {
     u8* aTextKanjiCOMPLETE_Data = LOAD_ASSET_RAW(aTextKanjiCOMPLETE);
 
     // Ranking header
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
     Graphics_DisplaySmallText(xPos, yPos, 1.0f, 1.0f, sSTARFOX_RANKING);
@@ -435,7 +462,7 @@ void Title_Ranking_Draw(void) {
     // This Kanji texture was used to draw a white line.
     Lib_TextureRect_IA8(&gMasterDisp, &aTextKanjiCOMPLETE_Data[288], 16, 2, 36, 32, 15.2f, 1.0f);
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     Title_RankingData_Draw();
 }
@@ -444,7 +471,7 @@ void Title_RankingData_Draw(void) {
     s32 yPos;
     s32 i;
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 0, 255);
 
@@ -1790,6 +1817,7 @@ void Title_CsTakeOff_Update(void) {
                 gAmbientB = 46;
 
                 sSceneState++;
+                sSkipInterpolation = true;
             }
             sTimer3++;
             break;
@@ -1890,6 +1918,7 @@ void Title_CsTakeOff_Update(void) {
                     Audio_SetEnvSfxReverb(0);
                     sSceneState = 0;
                     sCutsceneState = 5; // TITLE_TAKE_OFF_SPACE
+                    sSkipInterpolation = true;
                 }
                 sTimer3++;
             }
@@ -2905,7 +2934,7 @@ void Title_Passage_Draw(void) {
 }
 
 void Title_StarfoxLogo_Draw(void) {
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
 
     // LTodo: Validate this
@@ -2925,7 +2954,7 @@ void Title_64Logo_Draw(void) {
 }
 
 void Title_CopyrightSymbol_Draw(void) {
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
     Lib_TextureRect_IA8(&gMasterDisp, aTitleCopyrightTex, 16, 16, 234.0f, 20.0f, 1.0f, 1.0f);
 }
@@ -2953,21 +2982,21 @@ void Title_PressStart_Draw(void) {
 
         if (gMainController < 0) {
             // No Controller background
-            RCP_SetupDL(&gMasterDisp, SETUPDL_85_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_85_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 60, 60, 255, 200);
 
             Lib_TextureRect_CI8(&gMasterDisp, aNoControllerBgTex, aNoControllerBgTLUT, 32, 32, sNoControllerBgXpos,
                                 sNoControllerBgYpos, sNoControllerBgXscale, sNoControllerBgYscale);
 
             // No Controller
-            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, (s32) sTitleTextPrimCol, (s32) sTitleTextPrimCol, 255);
 
             Lib_TextureRect_IA8(&gMasterDisp, aTitleNoControllerTex, 176, 24, D_menu_801AE474, D_menu_801AE478, 1.0f,
                                 1.0f);
         } else {
             // Press Start
-            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, (s32) sTitleTextPrimCol, (s32) sTitleTextPrimCol, 255);
 
             Lib_TextureRect_IA8(&gMasterDisp, aTitlePressStartTex, 120, 13, 101.0f, yPos, 1.0f, 1.0f);
@@ -2978,7 +3007,7 @@ void Title_PressStart_Draw(void) {
 void Title_Copyright_Draw(void) {
     s32 i;
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
 
     Lib_TextureRect_IA8(&gMasterDisp, a1997NintendoTex, 120, 12, 102.0f, 209.0f, 1.0f, 1.0f);
@@ -2996,7 +3025,7 @@ void Title_TeamName_Draw(void) {
     temp_fs2 = D_menu_801AE47C[D_menu_801B8340];
     temp = 210.0f;
 
-    RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+    RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
     gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
 
@@ -3050,7 +3079,7 @@ void Title_SunGlare_Draw(void) {
                 D_menu_801B7BD0 -= 2;
             }
 
-            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
 
             gDPSetAlphaDither(gMasterDisp++, G_AD_NOISE);
             gDPSetColorDither(gMasterDisp++, G_CD_NOISE);
@@ -3171,7 +3200,7 @@ void Title_Logos_Draw(void) {
 
     switch (sTitleLogoState) {
         case TITLE_LOGO_STARFOX_IN:
-            RCP_SetupDL(&gMasterDisp, SETUPDL_85_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_85_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, (s32) sStarfoxLogoAlpha);
             Lib_TextureRect_CI4(&gMasterDisp, aIntroStarfoxLogoTex, aIntroStarfoxLogoTLUT, 256, 13, 90.0f, 110.0f, 1.0f,
                                 1.0f);
@@ -3180,7 +3209,7 @@ void Title_Logos_Draw(void) {
             break;
 
         case TITLE_LOGO_NINTENDO_64:
-            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, (s32) sStarfoxLogoAlpha);
             Lib_TextureRect_RGBA16(&gMasterDisp, aTitleN64LogoTex, 128, 88, D_menu_801B9070, D_menu_801B9074,
                                    D_menu_801B9078, D_menu_801B907C);
@@ -3315,14 +3344,14 @@ void Title_TitleCard_Draw(void) {
             break;
 
         case TITLE_CARD_GREAT_FOX:
-            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
             Lib_TextureRect_IA8(&gMasterDisp, aTitleGreatFoxCardTex, 144, 28, aTitleGreatFoxCardXpos,
                                 aTitleGreatFoxCardYpos, 1.0f, 1.0f);
             break;
 
         case TITLE_CARD_ARWING:
-            RCP_SetupDL(&gMasterDisp, SETUPDL_83_POINT);
+            RCP_SetupDL(&gMasterDisp, SETUPDL_83_OPTIONAL);
             gDPSetPrimColor(gMasterDisp++, 0, 0, 255, 255, 255, 255);
 
             Lib_TextureRect_IA8(&gMasterDisp, aTitleArwingCardTex, 112, 26, sTitleArwingCardXpos, sTitleArwingCardYpos,

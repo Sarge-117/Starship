@@ -19,6 +19,13 @@ void Rand_Init(void) {
 }
 
 f32 Rand_ZeroOne(void) {
+    // LTODO: On these platforms, something corrupts the seeds, causing one of them to be 0.
+    // This is a workaround to circumvent this issue, that needs to be fixed.
+#if defined(__SWITCH__) || defined(__linux__)
+    if ((sRandSeed1 == 0) || (sRandSeed2 == 0) || (sRandSeed2 == 0)) {
+        Rand_Init();
+    }
+#endif
     sRandSeed1 = (sRandSeed1 * 171) % 30269;
     sRandSeed2 = (sRandSeed2 * 172) % 30307;
     sRandSeed3 = (sRandSeed3 * 170) % 30323;

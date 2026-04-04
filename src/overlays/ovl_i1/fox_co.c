@@ -8,6 +8,8 @@
 #include "assets/ast_arwing.h"
 #include "assets/ast_corneria.h"
 #include "fox_co.h"
+#include "port/hooks/Events.h"
+#include "fox_record.h"
 
 u8 sFightCarrier;
 f32 sCoGrangaWork[68];
@@ -89,7 +91,9 @@ void Corneria_Granga_SpawnItem(Boss* this, f32 x, f32 y, f32 z, ObjectId itemId)
             gItems[i].obj.pos.x = x;
             gItems[i].obj.pos.y = y;
             gItems[i].obj.pos.z = z;
-            Object_SetInfo(&gItems[i].info, gItems[i].obj.id);
+            CALL_CANCELLABLE_EVENT(ItemDropEvent, &gItems[i]) {
+                Object_SetInfo(&gItems[i].info, gItems[i].obj.id);
+            }
             break;
         }
     }
@@ -178,6 +182,7 @@ void Corneria_CoGranga_HandleDamage(CoGranga* this) {
                 }
 
                 this->state = GRANGA_EXPLODE;
+
                 this->timer_050 = 100;
 
                 SEQCMD_STOP_SEQUENCE(SEQ_PLAYER_BGM, 80);
@@ -593,8 +598,10 @@ void Corneria_CoGranga_1UpCheck(CoGranga* this) {
                     gItems[i].obj.pos.z = gPlayer[0].trueZpos + dest.z;
                     gItems[i].timer_4A = 8;
 
-                    Object_SetInfo(&gItems[i].info, gItems[i].obj.id);
-                    Effect_Effect384_Spawn(gItems[i].obj.pos.x, gItems[i].obj.pos.y, gItems[i].obj.pos.z, 5.0f, 0);
+                    CALL_CANCELLABLE_EVENT(ItemDropEvent, &gItems[i]) {
+                        Object_SetInfo(&gItems[i].info, gItems[i].obj.id);
+                        Effect_Effect384_Spawn(gItems[i].obj.pos.x, gItems[i].obj.pos.y, gItems[i].obj.pos.z, 5.0f, 0);
+                    }
                     break;
                 }
             }
@@ -1683,7 +1690,7 @@ void Corneria_CoCarrier_Init(CoCarrier* this) {
     timer = this->timer_05A;
 
     // OBJ_BOSS_CO_CARRIER_LEFT to OBJ_BOSS_CO_CARRIER_BOTTOM
-    for (i = CARRIER_LEFT; i < ARRAY_COUNT(gBosses); i++) {
+    for (i = CARRIER_LEFT; i <= CARRIER_BOTTOM; i++) {
         Boss_Initialize(&gBosses[i]);
         gBosses[i].obj.status = OBJ_INIT;
         gBosses[i].obj.id = (i - 1) + OBJ_BOSS_CO_CARRIER_LEFT;
@@ -2228,18 +2235,24 @@ void Corneria_CoCarrier_Update(CoCarrier* this) {
                 Math_SmoothStepToF(&this->vel.y, 0.0f, 0.1f, 2.0f, 0.00001f);
                 Math_SmoothStepToF(&this->vel.z, 0.0f, 0.1f, 2.0f, 0.00001f);
 
-                this->obj.rot.z -= 2.0f;
-                this->gravity = 1.0f;
+                this->obj.rot.z -= 2.0f; // original value
+                this->gravity = 1.0f;    // original value
+                // @port: Adjust gravity and rot to compensate the lack of lag.
+                // this->obj.rot.z -= 2.0f - 0.86f;
+                // this->gravity = 1.0f - 0.43f;
 
                 if (this->obj.pos.y < (gGroundHeight + 150.0f)) {
                     gCameraShake = 100;
                     func_effect_80081A8C(this->obj.pos.x, this->obj.pos.y, this->obj.pos.z, 40.0f, 12);
-                    this->timer_050 = 20;
+
+                    this->timer_050 = 20; // original value
+                    // @port: Adjust timings to compensate the lack of lag.
+                    // this->timer_050 = 40;
                     this->vel.y = -10.0f;
                     this->gravity = 0.0f;
                     this->fwork[17] = 20.0f;
                     Corneria_CoCarrier_WaterSplash(this);
-                    this->state = 10;
+                    this->state = CARRIER_EXPLODE;
                 }
                 break;
 
@@ -2258,8 +2271,8 @@ void Corneria_CoCarrier_Update(CoCarrier* this) {
                 break;
         }
 
-        temp_a0 = (float*)SEGMENTED_TO_VIRTUAL(aCoCarrierUpperHitbox);
-        temp_a1 = (float*)SEGMENTED_TO_VIRTUAL(aCoCarrierBottomHitbox);
+        temp_a0 = (float*) SEGMENTED_TO_VIRTUAL(aCoCarrierUpperHitbox);
+        temp_a1 = (float*) SEGMENTED_TO_VIRTUAL(aCoCarrierBottomHitbox);
         temp_a0[9] = -100000.0f;
         temp_a0[3] = 172.0f;
         temp_a1[9] = -100000.0f;
@@ -3441,6 +3454,9 @@ void Corneria_LevelComplete1(Player* player) {
     f32 temp_fa0;
     f32 temp_fa1;
     f32 temp_deg;
+
+    // @Port: Vi recording
+    UpdateVisPerFrameFromRecording(gGrangaCutsceneRecord, ARRAY_COUNT(gGrangaCutsceneRecord), &gCsFrameCount);
 
     player->arwing.upperRightFlapYrot = player->arwing.upperLeftFlapYrot = player->arwing.bottomRightFlapYrot =
         player->arwing.bottomLeftFlapYrot = 0.0f;

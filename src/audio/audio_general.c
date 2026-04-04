@@ -3,6 +3,7 @@
 #include "sf64context.h"
 #include "audiothread_cmd.h"
 #include "audioseq_cmd.h"
+#include "port/Engine.h"
 
 void Audio_SetModulationAndPlaySfx(f32* sfxSource, u32 sfxId, f32 freqMod);
 s32 Audio_GetCurrentVoice(void);
@@ -453,26 +454,37 @@ s8 Audio_GetSfxReverb(u8 bankId, u8 entryIndex, u8 channelId) {
 
 s8 Audio_GetSfxPan(f32 xPos, f32 zPos, u8 mode) {
     if (sSfxChannelLayout != SFXCHAN_3) {
-        f32 absx = ABSF(xPos);
-        f32 absz = ABSF(zPos);
-        f32 pan;
+        float absx = ABSF(xPos);
+        float absz = ABSF(zPos);
 
-        if ((absx < 1.0f) && (absz < 1.0f)) {
+        // [0, 0] would be a degenerate value
+        // Consider these to be close to zero and put in center
+        if (absx < 1.f && absz < 1.f) {
             return 64;
         }
-        absx = MIN(1200.0f, absx);
-        absz = MIN(1200.0f, absz);
 
-        if ((xPos == 0) && (zPos == 0)) {
-            pan = 0.5f;
-        } else if ((xPos >= 0.f) && (absz <= absx)) {
-            pan = 1.0f - ((2400.0f - absx) / (10.0f * (2400.0f - absz)));
-        } else if ((xPos < 0.0f) && (absz <= absx)) {
-            pan = (2400.0f - absx) / (10.0f * (2400.0f - absz));
+        if (GetNumAudioChannels() == 2) {
+            float pan;
+            absx = MIN(1200.0f, absx);
+            absz = MIN(1200.0f, absz);
+
+            if ((xPos == 0) && (zPos == 0)) {
+                pan = 0.5f;
+            } else if ((xPos >= 0.f) && (absz <= absx)) {
+                pan = 1.0f - ((2400.0f - absx) / (10.0f * (2400.0f - absz)));
+            } else if ((xPos < 0.0f) && (absz <= absx)) {
+                pan = (2400.0f - absx) / (10.0f * (2400.0f - absz));
+            } else {
+                pan = (xPos / (2.5f * absz)) + 0.5f;
+            }
+            return ROUND(pan * 127.0f);
         } else {
-            pan = (xPos / (2.5f * absz)) + 0.5f;
+            // Calculate the angle in radians
+            float angle = atan2f(xPos, -zPos);
+            float normalized_angle = (angle / (2 * M_PI)) + 0.5f;
+            s8 pan = (s8) (normalized_angle * 127);
+            return pan;
         }
-        return ROUND(pan * 127.0f);
     } else if (mode != 4) {
         return ((mode & 1) * 127);
     }
@@ -506,7 +518,6 @@ void Audio_SetSfxProperties(u8 bankId, u8 entryIndex, u8 channelId) {
     f32 freqMod = 1.0f;
     s8 pan = 64;
     SfxBankEntry* entry = &sSfxBanks[bankId][entryIndex];
-
     switch (bankId) {
         case SFX_BANK_PLAYER:
         case SFX_BANK_1:
@@ -530,6 +541,11 @@ void Audio_SetSfxProperties(u8 bankId, u8 entryIndex, u8 channelId) {
             }
             break;
         case SFX_BANK_SYSTEM:
+            if (GameEngine_HasVersion(SF64_VER_EU)) {
+                if (entry->state == 2) {
+                    AUDIOCMD_CHANNEL_SET_IO(SEQ_PLAYER_SFX, channelId, 1, CVarGetInteger("gVoiceLanguage", 0));
+                }
+            }
             if (sSfxChannelLayout == SFXCHAN_3) {
                 if (entry->token != 4) {
                     pan = (entry->token & 1) * 127;
@@ -693,11 +709,10 @@ void Audio_ProcessSeqCmd(u32 seqCmd) {
             seqArgs = (seqCmd & 0xFF00) >> 8;
             fadeTimer = (seqCmd & 0xFF0000) >> 13;
 
-			seqArgs = 0;
+            seqArgs = 0;
 
-            //if (!sActiveSequences[seqPlayId].isWaitingForFonts) 
-			if (true)
-			{
+            // if (!sActiveSequences[seqPlayId].isWaitingForFonts)
+            if (true) {
                 if (seqArgs < 0x80) {
                     Audio_StartSequence(seqPlayId, seqNumber, seqArgs, fadeTimer);
                 } else {
@@ -893,14 +908,11 @@ void Audio_ProcessSeqCmd(u32 seqCmd) {
             oldSpecId = sAudioSpecId;
             sAudioSpecId = specId;
 
-            if (oldSpecId != specId) 
-			{
+            if (oldSpecId != specId) {
                 AudioThread_ResetAudioHeap(specId);
                 Audio_StartReset(oldSpecId);
                 AUDIOCMD_GLOBAL_STOP_AUDIOCMDS();
-            } 
-			else 
-			{
+            } else {
                 Audio_StopSequence(SEQ_PLAYER_BGM, 1);
                 Audio_StopSequence(SEQ_PLAYER_FANFARE, 1);
             }
@@ -998,8 +1010,7 @@ void Audio_UpdateActiveSequences(void) {
 
     for (seqPlayId = 0; seqPlayId < SEQ_PLAYER_MAX; seqPlayId++) {
         if (sActiveSequences[seqPlayId].isWaitingForFonts) {
-            switch ((s32) AudioThread_GetAsyncLoadStatus(&out)) 
-			{
+            switch ((s32) AudioThread_GetAsyncLoadStatus(&out)) {
                 case SEQ_PLAYER_BGM + 1:
                 case SEQ_PLAYER_FANFARE + 1:
                 case SEQ_PLAYER_SFX + 1:
@@ -1896,7 +1907,7 @@ s32 Audio_GetCurrentVoice(void) {
 s32 Audio_GetCurrentVoiceStatus(void) {
     // LAudioTODO: Stub for now
     // return 1;
-    
+
     SequenceChannel* channel = gSeqPlayers[SEQ_PLAYER_VOICE].channels[15];
     SequenceLayer* layer = channel->layers[0];
 
@@ -2240,7 +2251,7 @@ void Audio_AnalyzeFrequencies(f32* buffer0, f32* buffer1, s32 length, f32* buffe
     s32 size;
 
     size = 1 << length;
-    half = size >> 1;
+    half = size / 2;
 
     // Initialize buffer 2 if it is the wrong size for this calculation
     if (size != (s32) buffer2[0]) {
@@ -2324,9 +2335,15 @@ u8* Audio_UpdateFrequencyAnalysis(void) {
 
     Audio_ProcessPlaylist();
     // clang-format off
-    aiData = gAiBuffers[gCurAiBuffIndex];\
-    for(i3 = 0; i3 < 256; i3++) {\
-        sAudioAnalyzerData[i3] = *aiData++;
+    aiData = gAiBuffers[gCurAiBuffIndex];
+    int numChannels = GetNumAudioChannels();
+    for(i3 = 0; i3 < 256; i3++) {
+        sAudioAnalyzerData[i3] = *aiData;
+        if (i3 % 2 == 0) {
+            aiData++;
+        } else {
+            aiData += numChannels - 1;
+        }
     }
     // clang-format on
     Audio_AnalyzeFrequencies(sAudioAnalyzerData, sAnalyzerBuffer1, 8, sAnalyzerBuffer2);
@@ -2398,6 +2415,9 @@ void Audio_StopPlayerNoise(u8 playerId) {
             break;
         case FORM_LANDMASTER:
             sfxId = NA_SE_TANK_ENGIN;
+            if (GameEngine_HasVersion(SF64_VER_EU)) {
+                Audio_KillSfxBySourceAndId(gPlayer[playerId].sfx.srcPos, NA_SE_TANK_GO_UP);
+            }
             break;
         case FORM_BLUE_MARINE:
             sfxId = NA_SE_MARINE_ENGINE00;
@@ -2579,7 +2599,7 @@ void Audio_SetBgmParam(s8 bgmParam) {
 }
 
 void Audio_PlaySequence(u8 seqPlayId, u16 seqId, u8 fadeinTime, u8 bgmParam) {
-    //seqId &= 0xFF;
+    // seqId &= 0xFF;
     SEQCMD_SET_SEQPLAYER_IO(seqPlayId, 0, bgmParam);
     SEQCMD_PLAY_SEQUENCE(seqPlayId, fadeinTime, 0, seqId);
 }
@@ -2654,7 +2674,7 @@ void Audio_RestoreVolumeSettings(u8 audioType) {
     }
 }
 
-void Audio_SetVolume(u8 audioType, u8 volume) {    
+void Audio_SetVolume(u8 audioType, u8 volume) {
     if (volume > 99) {
         volume = 99;
     }
@@ -2724,6 +2744,18 @@ void Audio_KillAllSfx(void) {
     }
 }
 
+void Audio_SetVoiceLanguage(u8 language) {
+    switch (language) {
+        case 0:
+        default:
+            Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO, -1, 1);
+            break;
+        case 1:
+            Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO_LYLAT, -1, 1);
+            break;
+    }
+}
+
 void Audio_SetAudioSpec(u8 unused, u16 specParam) {
     u8 sfxChannelLayout = ((specParam & 0xFF00) >> 8);
     u8 specId = specParam & 0xFF;
@@ -2741,6 +2773,9 @@ void Audio_InitSounds(void) {
     Audio_ResetSfxChannelState();
     Audio_ResetActiveSequencesAndVolume();
     Audio_ResetSfx();
+    if (GameEngine_HasVersion(SF64_VER_EU)) {
+        AUDIOCMD_GLOBAL_SYNC_LOAD_SEQ_PARTS(NA_BGM_VO_LYLAT, 0);
+    }
     Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO, -1, 1);
     Audio_StartSequence(SEQ_PLAYER_SFX, NA_BGM_SE, -1, 10);
 }
@@ -2750,7 +2785,16 @@ void Audio_RestartSeqPlayers(void) {
     s32 pad2;
     u16 fadeIn = 1;
 
-    Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO, -1, 1);
+    if (GameEngine_HasVersion(SF64_VER_EU)) {
+        if (CVarGetInteger("gVoiceLanguage", 0) == 0) {
+            Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO, -1, 1);
+        } else {
+            Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO_LYLAT, -1, 1);
+        }
+    } else {
+        Audio_StartSequence(SEQ_PLAYER_VOICE, NA_BGM_VO, -1, 1);
+    }
+
     if (sAudioSpecId == AUDIOSPEC_AQ) {
         fadeIn = 360;
     } else if (sAudioSpecId < AUDIOSPEC_23) {
@@ -2780,7 +2824,8 @@ void Audio_StartReset(u8 oldSpecId) {
     } else {
         sAudioResetStatus = AUDIORESET_WAIT;
     }
-    // LTODO: Workaround for the crash after quitting the Practice mode
+
+    // @port: Workaround for the hang after quitting Training mode
     sAudioResetStatus = AUDIORESET_WAIT;
 
     AUDIOCMD_GLOBAL_UNMUTE(true);

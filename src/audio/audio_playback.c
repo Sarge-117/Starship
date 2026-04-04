@@ -40,10 +40,34 @@ void Audio_AudioListPushFront(AudioListItem* list, AudioListItem* item);
 void Audio_AudioListRemove(Note* note);
 void Audio_NoteInitForLayer(Note* note, SequenceLayer* layer);
 
+#if 0
+typedef struct {                                  // Little Endian
+    /* 0x00 */ uint8_t strongLeft : 1;            // 0000 0001
+    /* 0x00 */ uint8_t strongRight : 1;           // 0000 0010
+    /* 0x00 */ uint8_t bit2 : 2;                  // 0000 0100
+    /* 0x00 */ uint8_t unused : 2;                // 0001 0000
+    /* 0x00 */ uint8_t usesHeadsetPanEffects : 1; // 0100 0000
+    /* 0x00 */ uint8_t stereoHeadsetEffects : 1;  // 1000 0000
+} StereoDataTest;
+
+typedef union {
+    StereoDataTest data;
+    uint8_t raw;
+} StereoUnionTest;
+
+int testBits(void) {
+    StereoUnionTest test;
+
+    test.raw = 0; // Clear all bits
+    test.data.stereoHeadsetEffects = 1;
+
+    printf("Raw byte value: 0x%08X\n", test.raw);
+}
+#endif
+
 void Audio_InitNoteSub(Note* note, NoteAttributes* noteAttr) {
     NoteSubEu* noteSub;
-    f32 panVolumeLeft;
-    f32 pamVolumeRight;
+    f32 panVolumeLeft = 0, panVolumeRight = 0, panVolumeRearLeft = 0, panVolumeRearRight = 0, panVolumeCenter = 0;
     f32 velocity;
     s32 temp_t0;
     s32 var_a0;
@@ -53,65 +77,95 @@ void Audio_InitNoteSub(Note* note, NoteAttributes* noteAttr) {
     u8 reverb;
     Stereo stereo;
 
+    // testBits();
+
     Audio_NoteSetResamplingRate(note, noteAttr->freqMod);
     noteSub = &note->noteSubEu;
     velocity = noteAttr->velocity;
     pan = noteAttr->pan;
     reverb = noteAttr->reverb;
     stereo = noteAttr->stereo;
-    pan %= ARRAY_COUNTU(gHeadsetPanVolume);
-    if ((noteSub->bitField0.stereoHeadsetEffects) && (gAudioSoundMode == SOUNDMODE_HEADSET)) {
-        var_a0 = pan >> 1;
-        if (var_a0 >= ARRAY_COUNT(gHaasEffectDelaySizes)) {
-            var_a0 = ARRAY_COUNT(gHaasEffectDelaySizes) - 1;
-        }
-        noteSub->rightDelaySize = gHaasEffectDelaySizes[var_a0];
-        noteSub->leftDelaySize = gHaasEffectDelaySizes[ARRAY_COUNT(gHaasEffectDelaySizes) - 1 - var_a0];
-        noteSub->bitField0.stereoStrongRight = false;
-        noteSub->bitField0.stereoStrongLeft = false;
-        noteSub->bitField0.usesHeadsetPanEffects = true;
 
-        panVolumeLeft = gHeadsetPanVolume[pan];
-        pamVolumeRight = gHeadsetPanVolume[ARRAY_COUNT(gHeadsetPanVolume) - 1 - pan];
-    } else if (noteSub->bitField0.stereoHeadsetEffects && (gAudioSoundMode == SOUNDMODE_STEREO)) {
-        noteSub->leftDelaySize = 0;
-        noteSub->rightDelaySize = 0;
-        noteSub->bitField0.usesHeadsetPanEffects = false;
-
-        panVolumeLeft = gStereoPanVolume[pan];
-        pamVolumeRight = gStereoPanVolume[ARRAY_COUNT(gStereoPanVolume) - 1 - pan];
-        strongRight = false;
-        strongLeft = false;
-        if (pan < 32) {
-            strongLeft = true;
-        } else if (pan > 96) {
-            strongRight = true;
+    if (GetNumAudioChannels() == 2) {
+        pan %= ARRAY_COUNTU(gHeadsetPanVolume);
+        if ((noteSub->bitField0.stereoHeadsetEffects) && (gAudioSoundMode == SOUNDMODE_HEADSET)) {
+            var_a0 = pan >> 1;
+            if (var_a0 >= ARRAY_COUNT(gHaasEffectDelaySizes)) {
+                var_a0 = ARRAY_COUNT(gHaasEffectDelaySizes) - 1;
+            }
+            noteSub->rightDelaySize = gHaasEffectDelaySizes[var_a0];
+            noteSub->leftDelaySize = gHaasEffectDelaySizes[ARRAY_COUNT(gHaasEffectDelaySizes) - 1 - var_a0];
+            noteSub->bitField0.stereoStrongRight = false;
+            noteSub->bitField0.stereoStrongLeft = false;
+            noteSub->bitField0.usesHeadsetPanEffects = true;
+            panVolumeLeft = gHeadsetPanVolume[pan];
+            panVolumeRight = gHeadsetPanVolume[ARRAY_COUNT(gHeadsetPanVolume) - 1 - pan];
+        } else if (noteSub->bitField0.stereoHeadsetEffects && (gAudioSoundMode == SOUNDMODE_STEREO)) {
+            noteSub->leftDelaySize = 0;
+            noteSub->rightDelaySize = 0;
+            noteSub->bitField0.usesHeadsetPanEffects = false;
+            panVolumeLeft = gStereoPanVolume[pan];
+            panVolumeRight = gStereoPanVolume[ARRAY_COUNT(gStereoPanVolume) - 1 - pan];
+            strongRight = false;
+            strongLeft = false;
+            if (pan < 32) {
+                strongLeft = true;
+            } else if (pan > 96) {
+                strongRight = true;
+            }
+            noteSub->bitField0.stereoStrongRight = strongRight;
+            noteSub->bitField0.stereoStrongLeft = strongLeft;
+            switch (stereo.s.bit2) {
+                case 0:
+                    noteSub->bitField0.stereoStrongRight = stereo.s.strongRight;
+                    noteSub->bitField0.stereoStrongLeft = stereo.s.strongLeft;
+                    break;
+                case 1:
+                    break;
+                case 2:
+                    noteSub->bitField0.stereoStrongRight = stereo.s.strongRight | strongRight;
+                    noteSub->bitField0.stereoStrongLeft = stereo.s.strongLeft | strongLeft;
+                    break;
+                case 3:
+                    noteSub->bitField0.stereoStrongRight = stereo.s.strongRight ^ strongRight;
+                    noteSub->bitField0.stereoStrongLeft = stereo.s.strongLeft ^ strongLeft;
+                    break;
+            }
+        } else if (gAudioSoundMode == SOUNDMODE_MONO) {
+            panVolumeLeft = 0.707f;
+            panVolumeRight = 0.707f;
+        } else {
+            panVolumeLeft = gDefaultPanVolume[pan];
+            panVolumeRight = gDefaultPanVolume[ARRAY_COUNT(gDefaultPanVolume) - 1 - pan];
         }
-        noteSub->bitField0.stereoStrongRight = strongRight;
-        noteSub->bitField0.stereoStrongLeft = strongLeft;
-        switch (stereo.s.bit2) {
-            case 0:
-                noteSub->bitField0.stereoStrongRight = stereo.s.strongRight;
-                noteSub->bitField0.stereoStrongLeft = stereo.s.strongLeft;
-                break;
-            case 1:
-                break;
-            case 2:
-                noteSub->bitField0.stereoStrongRight = stereo.s.strongRight | strongRight;
-                noteSub->bitField0.stereoStrongLeft = stereo.s.strongLeft | strongLeft;
-                break;
-            case 3:
-                noteSub->bitField0.stereoStrongRight = stereo.s.strongRight ^ strongRight;
-                noteSub->bitField0.stereoStrongLeft = stereo.s.strongLeft ^ strongLeft;
-                break;
-        }
-    } else if (gAudioSoundMode == SOUNDMODE_MONO) {
-        panVolumeLeft = 0.707f;
-        pamVolumeRight = 0.707f;
     } else {
-        panVolumeLeft = gDefaultPanVolume[pan];
-        pamVolumeRight = gDefaultPanVolume[ARRAY_COUNT(gDefaultPanVolume) - 1 - pan];
+        // Surround 5.1
+        if (stereo.s.is_voice) { // VOICE
+            panVolumeCenter = 1.0f;
+        } else if (stereo.s.is_sfx) { // SFX
+            float pan_angle = ((float) pan) / 128 * 2 * M_PI;
+
+            // Speaker angles in radians
+            const float front_left = (CVarGetInteger("gPositionFrontLeft", 240) - 90) * (M_PI / 180.0f);
+            const float front_right = (CVarGetInteger("gPositionFrontRight", 300) - 90) * (M_PI / 180.0f);
+            const float rear_left = (CVarGetInteger("gPositionRearLeft", 160) - 90) * (M_PI / 180.0f);
+            const float rear_right = (CVarGetInteger("gPositionRearRight", 20) - 90) * (M_PI / 180.0f);
+
+            // Calculate volumes using cosine panning law
+            panVolumeLeft = fmaxf(0, cosf(pan_angle - front_left));      // Front Left
+            panVolumeRight = fmaxf(0, cosf(pan_angle - front_right));    // Front Right
+            panVolumeRearLeft = fmaxf(0, cosf(pan_angle - rear_left));   // Rear Left
+            panVolumeRearRight = fmaxf(0, cosf(pan_angle - rear_right)); // Rear Right
+        } else {                                                         // MUSIC
+            panVolumeLeft = gStereoPanVolume[pan];
+            panVolumeRight = gStereoPanVolume[ARRAY_COUNT(gStereoPanVolume) - 1 - pan];
+
+            f32 rearMusicVolume = CVarGetFloat("gVolumeRearMusic", 1.0f);
+            panVolumeRearLeft = gStereoPanVolume[pan] * rearMusicVolume;
+            panVolumeRearRight = gStereoPanVolume[ARRAY_COUNT(gStereoPanVolume) - 1 - pan] * rearMusicVolume;
+        }
     }
+
     if (velocity < 0.0f) {
         velocity = 0.0f;
     }
@@ -121,16 +175,15 @@ void Audio_InitNoteSub(Note* note, NoteAttributes* noteAttr) {
 
     float master_vol = CVarGetFloat("gGameMasterVolume", 1.0f);
     noteSub->panVolLeft = (s32) (velocity * panVolumeLeft * 4095.999f) * master_vol;
-    noteSub->panVolRight = (s32) (velocity * pamVolumeRight * 4095.999f) * master_vol;
+    noteSub->panVolRight = (s32) (velocity * panVolumeRight * 4095.999f) * master_vol;
+    noteSub->panVolRLeft = (s32) (velocity * panVolumeRearLeft * 4095.999f) * master_vol;
+    noteSub->panVolRRight = (s32) (velocity * panVolumeRearRight * 4095.999f) * master_vol;
+    noteSub->panVolCenter = (s32) (velocity * panVolumeCenter * 4095.999f) * master_vol;
+    noteSub->panVolLfe = (s32) (velocity * 4095.999f) * master_vol;
 
     noteSub->gain = noteAttr->gain;
     if (noteSub->reverb != reverb) {
         noteSub->reverb = reverb;
-        noteSub->bitField0.unused = true;
-    } else if (noteSub->bitField0.needsInit) {
-        noteSub->bitField0.unused = true;
-    } else {
-        noteSub->bitField0.unused = false;
     }
 }
 
@@ -168,9 +221,9 @@ TunedSample* Audio_GetInstrumentTunedSample(Instrument* instrument, s32 semitone
 Instrument* Audio_GetInstrument(s32 fontId, s32 instId) {
     Instrument* instrument;
 
-	//fontId = 7;
+    // fontId = 7;
 
-    if(gSoundFontList[fontId].instruments == NULL){
+    if (gSoundFontList[fontId].instruments == NULL) {
         gSoundFontList[fontId] = *Audio_LoadFont(gSoundFontTable->entries[fontId], fontId);
     }
 
@@ -187,6 +240,7 @@ Instrument* Audio_GetInstrument(s32 fontId, s32 instId) {
         D_80155D88 = (fontId << 8) + instId + 0x01000000;
         return instrument;
     }
+    // printf("InstId: %d\n", instId);
     return instrument;
 }
 
@@ -194,7 +248,7 @@ Drum* Audio_GetDrum(s32 fontId, s32 drumId) {
     Drum* drum;
 
     // LTODO: Remove this
-    if(gSoundFontList[fontId].drums == NULL){
+    if (gSoundFontList[fontId].drums == NULL) {
         gSoundFontList[fontId] = *Audio_LoadFont(gSoundFontTable->entries[fontId], fontId);
     }
 
@@ -206,9 +260,9 @@ Drum* Audio_GetDrum(s32 fontId, s32 drumId) {
         D_80155D88 = (fontId << 8) + drumId + 0x04000000;
         return NULL;
     }
-//    if ((u32) gSoundFontList[fontId].drums < AUDIO_RELOCATED_ADDRESS_START) {
-//        return NULL;
-//    }
+    //    if ((u32) gSoundFontList[fontId].drums < AUDIO_RELOCATED_ADDRESS_START) {
+    //        return NULL;
+    //    }
     drum = gSoundFontList[fontId].drums[drumId];
     if (gSoundFontList[fontId].drums[drumId] == NULL) {
         D_80155D88 = (fontId << 8) + drumId + 0x05000000;
@@ -339,6 +393,8 @@ void Audio_ProcessNotes(void) {
                 sp70.velocity = playbackState->parentLayer->noteVelocity;
                 sp70.pan = playbackState->parentLayer->notePan;
                 sp70.stereo = playbackState->parentLayer->stereo;
+                sp70.stereo.s.is_voice = playbackState->parentLayer->channel->is_voice;
+                sp70.stereo.s.is_sfx = playbackState->parentLayer->channel->is_sfx;
                 sp70.reverb = playbackState->parentLayer->channel->targetReverbVol;
                 sp70.gain = playbackState->parentLayer->channel->reverbIndex;
 

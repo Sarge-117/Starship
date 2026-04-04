@@ -3,7 +3,7 @@
 
 # Starship
 
-Developed by: 
+Lead Developers: 
 * [SonicDcer](https://www.github.com/sonicdcer)
 * [Lywx](https://www.github.com/kiritodv)
 
@@ -18,27 +18,36 @@ If you're having any trouble after reading through this `README`, feel free ask 
 Starship does not include any copyrighted assets.  You are required to provide a supported copy of the game.
 
 ### 1. Verify your ROM dump
-The supported ROM is the USA 1.1 Rev A version. You can verify you have dumped a supported copy of the game by using the SHA-1 File Checksum Online at https://www.romhacking.net/hash/. The hash for a US 1.1 ROM is SHA-1: 09F0D105F476B00EFA5303A3EBC42E60A7753B7A.
+The supported ROMs are US 1.0 and US 1.1 Rev A versions. You can verify you have dumped a supported copy of the game by using the SHA-1 File Checksum Online at https://www.romhacking.net/hash/. 
+
+* The SHA-1 hash for a US 1.0 ROM is D8B1088520F7C5F81433292A9258C1184AFA1457.
+* The SHA-1 hash for a US 1.1 ROM is 09F0D105F476B00EFA5303A3EBC42E60A7753B7A.
+
+Starship also supports voice language replacement use from both EU (Lylat) and JP (Japanese) when used in conjunction with an US ROM.
+
+Note: JP and EU versions of the game are not supported for the base asset O2R creation, a US ROM must be used for it, and you can only use one voice language replacement at a time (Either EU or JP).
 
 ### 2. Verify your ROM is in .z64 format
 Your ROM needs to be in .z64 format. If it's in .n64 format, use the following to convert it to a .z64: https://hack64.net/tools/swapper.php
 
 ### 2. Download Starship from [Releases](https://github.com/HarbourMasters/Starship/releases)
 
-### 3. Generating the OTR from the ROM
+### 3. Generating the OTR from the ROM and Play!
 #### Windows
 * Extract every file from the zip into a folder of your choosing.
-* Copy your ROM to the root of the folder you extracted the zip to.
-* Run "generate_otr.bat"
+* Run starship.exe and select your US 1.0 or US 1.1 ROM.
+
+#### Linux
+* Extract every file from the zip into a folder of your choosing.
+* Execute starship.appimage. You may have to chmod +x the appimage via terminal.
 
 #### MacOS
 * Extract every file from the zip into a folder of your choosing.
-* Copy your ROM to the root of the folder you extracted the zip to.
-* Run "generate_otr.sh"
+* Run starship and select your US 1.0 or US 1.1 ROM.
 
-### 4. Play!
-* Launch `Starship.exe`
-Congratulations, you are now sailing with Starship! Have fun!
+#### Nintendo Switch
+* Run one of the PC releases to generate an `sf64.o2r` file. After launching the game on PC, you will be able to find these files in the same directory as `starship.exe` or `starship.appimage`.
+* Copy the files to your sd card
 
 # Configuration
 
@@ -51,15 +60,14 @@ Congratulations, you are now sailing with Starship! Have fun!
 | Keys | Action |
 | - | - |
 | F1 | Toggle menubar |
+| F4 | Reset |
 | F11 | Fullscreen |
 | Tab | Toggle Alternate assets |
-| Ctrl+R | Reset |
 
 ### Graphics Backends
 Currently, there are three rendering APIs supported: DirectX11 (Windows), OpenGL (all platforms), and Metal (macOS). You can change which API to use in the `Settings` menu of the menubar, which requires a restart.  If you're having an issue with crashing, you can change the API in the `starship.cfg.json` file by finding the line `"Backend":{`... and changing the `id` value to `3` and set the `Name` to `OpenGL`. `DirectX 11` with id `2` is the default on Windows. `Metal` with id `4` is the default on macOS.
 
 # Custom Assets
-
 Custom assets are packed in `.o2r` or `.otr` files. To use custom assets, place them in the `mods` folder.
 
 If you're interested in creating and/or packing your own custom asset `.o2r`/`.otr` files, check out the following tools:
@@ -70,6 +78,14 @@ If you're interested in creating and/or packing your own custom asset `.o2r`/`.o
 ### Building
 
 If you want to manually compile Starship, please consult the [building instructions](https://github.com/HarbourMasters/Starship/blob/main/docs/BUILDING.md).
+
+### Playtesting
+If you want to playtest a continuous integration build, you can find them at the links below. Keep in mind that these are for playtesting only, and you will likely encounter bugs and possibly crashes. 
+
+* [Windows](https://nightly.link/HarbourMasters/Starship/workflows/main/main/starship-windows.zip)
+* [macOS](https://nightly.link/HarbourMasters/Starship/workflows/main/main/Starship-mac.zip)
+* [Linux](https://nightly.link/HarbourMasters/Starship/workflows/main/main/Starship-linux.zip)
+* [Switch](https://nightly.link/HarbourMasters/Starship/workflows/main/main/Starship-switch.zip)
 
 <a href="https://github.com/Kenix3/libultraship/">
   <picture>

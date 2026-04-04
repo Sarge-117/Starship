@@ -4,6 +4,8 @@
 #include "assets/ast_logo.h"
 #include "mods.h"
 #include "port/interpolation/FrameInterpolation.h"
+#include "port/hooks/list/EngineEvent.h"
+#include "port/mods/PortEnhancements.h"
 
 f32 gNextVsViewScale;
 f32 gVsViewScale;
@@ -346,6 +348,9 @@ void Game_Update(void) {
     u8 partialFill;
     u8 soundMode;
 
+    // @port: @event: Call GamePreUpdateEvent
+    CALL_EVENT(GamePreUpdateEvent);
+
     Game_SetGameState();
     if (gGameStandby) {
         Game_InitStandbyDL(&gUnkDisp1);
@@ -377,7 +382,7 @@ void Game_Update(void) {
                 break;
 
             case GSTATE_SHOW_LOGO:
-                RCP_SetupDL(&gMasterDisp, SETUPDL_76_POINT);
+                RCP_SetupDL(&gMasterDisp, SETUPDL_76_OPTIONAL);
                 gDPSetPrimColor(gMasterDisp++, 0x00, 0x00, 255, 255, 255, 255);
                 Lib_TextureRect_IA8(&gMasterDisp, gNintendoLogo, 128, 74, 100.0f, 86.0f, 1.0f, 1.0f);
                 gGameState++;
@@ -397,7 +402,7 @@ void Game_Update(void) {
                 Timer_CreateTask(MSEC_TO_CYCLES(1000), Timer_Increment, (s32*) &gGameState, 1);
                 /* fallthrough */
             case GSTATE_LOGO_WAIT:
-                RCP_SetupDL(&gMasterDisp, SETUPDL_76_POINT);
+                RCP_SetupDL(&gMasterDisp, SETUPDL_76_OPTIONAL);
                 gDPSetPrimColor(gMasterDisp++, 0x00, 0x00, 255, 255, 255, 255);
                 Lib_TextureRect_IA8(&gMasterDisp, gNintendoLogo, 128, 74, 100.0f, 86.0f, 1.0f, 1.0f);
                 break;
@@ -564,9 +569,13 @@ void Game_Update(void) {
                 Radio_Draw();
                 if (gShowHud) {
                     HUD_Draw();
-                    HUD_EdgeArrows_Update();
+                    CALL_CANCELLABLE_EVENT(DrawEdgeArrowsHUDEvent) {
+                        HUD_EdgeArrows_Update();
+                    }
                 }
-                HUD_DrawBossHealth();
+                CALL_CANCELLABLE_EVENT(DrawBossHealthHUDEvent) {
+                    HUD_DrawBossHealth();
+                }
             }
         } else {
             for (i = 0; i < gCamCount; i++) {
@@ -596,16 +605,15 @@ void Game_Update(void) {
 
         if (!partialFill) {
             Graphics_FillRectangle(&gMasterDisp, OTRGetRectDimensionFromLeftEdge(0), 0,
-                                   OTRGetRectDimensionFromRightEdge(SCREEN_WIDTH), SCREEN_HEIGHT,
-                                   gFillScreenRed, gFillScreenGreen, gFillScreenBlue, gFillScreenAlpha);
+                                   OTRGetRectDimensionFromRightEdge(SCREEN_WIDTH), SCREEN_HEIGHT, gFillScreenRed,
+                                   gFillScreenGreen, gFillScreenBlue, gFillScreenAlpha);
         }
         Audio_dummy_80016A50();
-#if MODS_RAM_MOD == 1
-        RamMod_Update();
-#endif
-        if(CVarGetInteger("gSpawnerMod", 0) == 1){
-            Spawner();
-        }
+
+        // @port: @event: Call GamePostUpdateEvent
+        CALL_EVENT(GamePostUpdateEvent);
+
+        gLastPathTexScroll = gPathTexScroll;
     }
 }
 

@@ -7,6 +7,8 @@
 #include "assets/ast_bg_planet.h"
 #include "prevent_bss_reordering.h"
 #include "prevent_bss_reordering2.h"
+#include "port/hooks/Events.h"
+#include "fox_record.h"
 
 f32 D_i6_801A7F5C;
 f32 D_i6_801A7F64;
@@ -154,7 +156,9 @@ void Andross_801878A8() {
             item->obj.pos.z = -gLevelObjects[i].zPos1;
             item->obj.pos.z += gLevelObjects[i].zPos2;
             item->obj.pos.y = gLevelObjects[i].yPos;
-            Object_SetInfo(&item->info, item->obj.id);
+            CALL_CANCELLABLE_EVENT(ItemDropEvent, item) {
+                Object_SetInfo(&item->info, item->obj.id);
+            }
             item++;
         }
     }
@@ -235,7 +239,9 @@ void Andross_80187C5C(void) {
             item->obj.pos.z = -gLevelObjects[i].zPos1;
             item->obj.pos.z += gLevelObjects[i].zPos2;
             item->obj.pos.y = gLevelObjects[i].yPos;
-            Object_SetInfo(&item->info, item->obj.id);
+            CALL_CANCELLABLE_EVENT(ItemDropEvent, item) {
+                Object_SetInfo(&item->info, item->obj.id);
+            }
             item++;
         }
     }
@@ -1632,8 +1638,10 @@ void Andross_Effect396_Update(Effect396* this) {
                             item->obj.pos.y = this->obj.pos.y;
                             item->obj.pos.z = this->obj.pos.z;
                             item->timer_4A = 8;
-                            Object_SetInfo(&item->info, item->obj.id);
                             item->unk_50 = 90.0f;
+                            CALL_CANCELLABLE_EVENT(ItemDropEvent, item) {
+                                Object_SetInfo(&item->info, item->obj.id);
+                            }
                             break;
                         }
                     }
@@ -3844,6 +3852,7 @@ f32 D_i6_801A7F4C;
 f32 D_i6_801A7F50;
 f32 D_i6_801A7F54;
 
+// Andross_LevelComplete
 void Andross_80193C4C(Player* player) {
     s32 i;
     s32 sp90;
@@ -3854,6 +3863,13 @@ void Andross_80193C4C(Player* player) {
     Vec3f sp74;
     Vec3f sp68;
     s32 rnd;
+
+    // @Port: Vi recording
+    if (player->csState < 3) {
+        UpdateVisPerFrameFromRecording(gAndrossRobotKillCutscene1, ARRAY_COUNT(gAndrossRobotKillCutscene1), &gCsFrameCount);
+    } else if ((player->csState > 2) && player->csState < 6) {
+        UpdateVisPerFrameFromRecording(gAndrossRobotKillCutscene2, ARRAY_COUNT(gAndrossRobotKillCutscene2), &gCsFrameCount);
+    }
 
     Math_SmoothStepToF(D_ctx_80177A48, 1.0f, 1.0f, 0.01f, 0.0f);
 
@@ -4159,7 +4175,8 @@ void Andross_80193C4C(Player* player) {
 
             Math_SmoothStepToF(&D_ctx_80177A48[2], 10000.0f, 0.05f, 20.0f, 0.0f);
 
-            if (gCsFrameCount == 220) {
+            // @port: Make your team spawn early in the cutscene to compensate for widescreen
+            if (gCsFrameCount == /* 220 */ 200) {
                 Andross_80193AE4(0);
                 if (gTeamShields[TEAM_ID_FALCO] > 0) {
                     Andross_80193AE4(1);

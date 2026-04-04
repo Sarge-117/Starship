@@ -16,6 +16,8 @@ ctx.c.m2c
 *.u64
 *.bin
 *.otr
+*.o2r
+*.log
 *.eeprom
 assets/yaml/us/ast_test.yaml
 /audio_data
@@ -34,6 +36,7 @@ cmake-build-*/
 .vs
 build*
 logs/
+/mods/
 starship.cfg.json
 default.sav
 imgui.ini
@@ -49,3 +52,10 @@ Starship.log
 *.pdb
 dumps/
 _packages/*
+*.DS_Store
+src/jp/
+src/eu/
+src/cn/
+
+properties.h
+mods*/

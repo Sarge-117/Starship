@@ -10,6 +10,7 @@
 #include "assets/ast_landmaster.h"
 #include "assets/ast_enmy_planet.h"
 // #include "prevent_bss_reordering2.h"
+#include "fox_record.h"
 
 typedef struct {
     /* 0x00 */ f32 unk_00;
@@ -430,11 +431,10 @@ void Macbeth_Texture_RotateZ(u8* destTex, u8* srcTex, f32 angle) {
         }
     }
     Matrix_Pop(&gCalcMatrix);
+    gSPInvalidateTexCache(gMasterDisp++, destTex);
 }
 
 void Macbeth_Texture_Scroll(u8* tex, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
-    // return;
-
     // LTODO: this is causing corruption, overflow.
     // Texture at D_MA_6023228 might be the culprit.
     u8* texPtr = SEGMENTED_TO_VIRTUAL(tex);
@@ -455,6 +455,7 @@ void Macbeth_Texture_Scroll(u8* tex, s32 arg1, s32 arg2, s32 arg3, s32 arg4) {
         texPtr[((arg2 - 2) * arg1) + i] = b;
         texPtr[((arg2 - 1) * arg1) + i] = a;
     }
+    gSPInvalidateTexCache(gMasterDisp++, tex);
 }
 
 void Macbeth_Texture_Scroll2(u16* tex, s32 arg1, s32 arg2) {
@@ -472,6 +473,7 @@ void Macbeth_Texture_Scroll2(u16* tex, s32 arg1, s32 arg2) {
 
         texPtr[i] = a;
     }
+    gSPInvalidateTexCache(gMasterDisp++, tex);
 }
 
 void Macbeth_Train_Init(Actor* this) {
@@ -560,8 +562,8 @@ void Macbeth_Train_Init(Actor* this) {
 }
 
 void Macbeth_RotateTrainWheels(void) {
-    // LTODO: This is broken and crashes the game
-    // Macbeth_Texture_Scroll(D_MA_6023228, 16, 16, 0, 8);
+    // LTODO: ASAN accuses Heap overflow
+    Macbeth_Texture_Scroll(D_MA_6023228, 16, 16, 0, 8);
     Macbeth_Texture_RotateZ(D_MA_6023388, D_Tex_800DB4B8, gGameFrameCount * -20.0f);
 }
 
@@ -3492,12 +3494,14 @@ void Macbeth_MaRailwaySignal_Draw(MaRailwaySignal* this) {
     Vec3f frameTable[50];
 
     Matrix_Push(&gGfxMatrix);
+    // Lever
     Animation_GetFrameData(&D_MA_602F2E0, 0, frameTable);
     Animation_DrawSkeleton(1, D_MA_602F36C, frameTable, Macbeth_MaRailwaySignal_OverrideLimbDraw1, NULL, this,
                            &gIdentityMatrix);
     Matrix_Pop(&gGfxMatrix);
     Matrix_Push(&gGfxMatrix);
     Animation_GetFrameData(&D_MA_602F098, 0, frameTable);
+    // Base
     Animation_DrawSkeleton(1, D_MA_602F264, frameTable, Macbeth_MaRailwaySignal_OverrideLimbDraw2, NULL, this,
                            &gIdentityMatrix);
     Matrix_Pop(&gGfxMatrix);
@@ -3889,8 +3893,8 @@ void Macbeth_801A6984(Actor207* this) {
         spA0 = temp_fs3_2;
         sp9C = temp_fs4;
     }
-    // LTODO: Heap overflow
-    // Macbeth_Texture_Scroll2(D_MA_6012C98, 4, 8);
+    // LTODO: ASAN accuses Heap overflow
+    Macbeth_Texture_Scroll2(D_MA_6012C98, 4, 8);
 }
 
 void Macbeth_801A6C78(Actor207* this) {
@@ -5898,11 +5902,17 @@ void Macbeth_MaBombDrop_Draw(MaBombDrop* this) {
             break;
 
         case 1:
+            // @port Skip interpolation
+            FrameInterpolation_ShouldInterpolateFrame(false);
+
             Matrix_Scale(gGfxMatrix, this->fwork[0], this->scale, 2.5f, MTXF_APPLY);
             Matrix_SetGfxMtx(&gMasterDisp);
             RCP_SetupDL_40();
             gSPClearGeometryMode(gMasterDisp++, G_CULL_BACK);
             gSPDisplayList(gMasterDisp++, D_ENMY_PLANET_4008F70);
+
+            // @port renable interpolation
+            FrameInterpolation_ShouldInterpolateFrame(true);
             RCP_SetupDL(&gMasterDisp, SETUPDL_64);
             break;
     }
@@ -6475,6 +6485,9 @@ void Macbeth_LevelComplete2(Player* player) {
     Vec3f spE4;
     Vec3f spD8;
     f32 zeroVar = 0.0f;
+
+    // @Port: Vi recording
+    UpdateVisPerFrameFromRecording(gMacbethCutsceneRecord, ARRAY_COUNT(gMacbethCutsceneRecord), &gCsFrameCount);
 
     switch (player->csState) {
         case 0:
